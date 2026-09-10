@@ -3,6 +3,7 @@ warnings.filterwarnings("ignore")
 
 import os
 import json
+import time
 from typing import List
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -108,6 +109,9 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# Last-seen status for the native local C++ capture engine.
+local_engine_status = {"online": False, "last_seen": 0.0, "interface": "", "engine_source": "local_cpp"}
+
 # ==========================================
 # 3. API Routes
 # ==========================================
@@ -119,6 +123,32 @@ def root():
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "cyber-shield-backend"}
+
+@app.post("/api/engine/heartbeat")
+async def engine_heartbeat(payload: dict = Body(...)):
+    """Receive a lightweight heartbeat from the native C++ live engine."""
+    local_engine_status.update({
+        "online": True,
+        "last_seen": time.time(),
+        "interface": str(payload.get("interface") or ""),
+        "engine_source": str(payload.get("engine_source") or "local_cpp"),
+    })
+    await manager.broadcast({
+        "type": "engine_status",
+        "data": {
+            "online": True,
+            "last_seen": local_engine_status["last_seen"],
+            "interface": local_engine_status["interface"],
+            "engine_source": local_engine_status["engine_source"],
+        }
+    })
+    return {"status": "ok", "engine": "local_cpp"}
+
+@app.get("/api/engine/status")
+async def engine_status():
+    age = time.time() - float(local_engine_status.get("last_seen", 0) or 0)
+    online = bool(local_engine_status.get("last_seen")) and age <= 15
+    return {**local_engine_status, "online": online, "age_seconds": round(age, 1)}
 
 @app.get("/api/history")
 async def get_history():
