@@ -364,8 +364,26 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            message = await websocket.receive_text()
+
+            # Application-level heartbeat used by the browser dashboard.
+            # Render/proxy layers can close completely idle WebSocket connections,
+            # so acknowledge the heartbeat to keep traffic flowing.
+            try:
+                payload = json.loads(message)
+            except (TypeError, json.JSONDecodeError):
+                payload = {}
+
+            if payload.get("type") == "ping":
+                await websocket.send_json({
+                    "type": "pong",
+                    "timestamp": payload.get("timestamp")
+                })
+
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as exc:
+        print(f"WebSocket connection error: {exc}")
         manager.disconnect(websocket)
 
 # ==========================================
