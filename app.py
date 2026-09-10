@@ -149,6 +149,19 @@ async def receive_live_event(event: SuspiciousEvent):
     """Endpoint for the local C++ engine (localengine.cpp) to post alerts."""
     event_dict = event.model_dump() if hasattr(event, "model_dump") else event.dict()
 
+    # Connection/heartbeat messages are transport status, not security findings.
+    # Do not persist or broadcast them as live security alerts.
+    _reason = str(event_dict.get("reason") or event_dict.get("message") or "").strip().lower()
+    if _reason and (
+        "cloud connection" in _reason
+        or "connection successful" in _reason
+        or "connection established" in _reason
+        or "backend online" in _reason
+        or "connected to" in _reason
+        or _reason in {"ping", "pong", "heartbeat"}
+    ):
+        return {"status": "ignored", "message": "Connection status event ignored"}
+
     # The existing alerts table is intentionally kept compatible with the
     # deployed schema. New telemetry is still streamed live even if the legacy
     # table has no matching column yet.
