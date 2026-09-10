@@ -373,5 +373,6 @@ async def websocket_endpoint(websocket: WebSocket):
 # ==========================================
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Cyber Shield FastAPI Backend on http://127.0.0.1:8000 ...")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Starting Cyber Shield FastAPI Backend on http://0.0.0.0:{port} ...")
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
